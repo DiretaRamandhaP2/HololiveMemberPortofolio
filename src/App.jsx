@@ -34,9 +34,7 @@ export default function App() {
     if (!entered) return;
     allMembers.forEach((member) => {
       const image = new Image();
-      image.src = member.character.startsWith("/")
-        ? member.character
-        : `/${member.character}`;
+      image.src = member.character;
     });
   }, [entered]);
 
