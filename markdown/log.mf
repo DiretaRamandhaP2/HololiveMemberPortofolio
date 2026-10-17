@@ -1,0 +1,51 @@
+# Investigasi halaman blank
+
+Tanggal: 2026-10-15
+
+## Ringkasan temuan
+
+### Penyebab utama yang terindikasi
+
+1. Perubahan partikel sebelumnya menggunakan API `initParticlesEngine`. Kondisi paket saat ini sudah benar: `@tsparticles/react@3.0.0` dan `@tsparticles/slim@3.9.1`. `node_modules/@tsparticles/react/dist/index.js` mengekspor `initParticlesEngine`, dan `@tsparticles/slim` mengekspor `loadSlim`.
+2. Sebelum instalasi v3 selesai, error build yang dilaporkan adalah `MISSING_EXPORT: "initParticlesEngine" is not exported by node_modules/@tsparticles/react/index.js`. Dengan paket saat ini, error tersebut tidak lagi muncul.
+
+### Penyebab tambahan
+
+- `src/data/members.js` memakai particle `sparkles`, `hearts`, `petals`, dan `data`, sedangkan `src/components/ParticlePresets.jsx` tidak memiliki preset dengan nama tersebut. `src/components/ParticleLayer.jsx:19` sudah memiliki fallback `presets[type] ?? presets.stars`, sehingga ini bukan crash, tetapi efeknya menjadi bintang.
+- `src/components/ParticleLayer.jsx:23` sebelumnya memanggil `window.matchMedia` langsung saat render. Ini aman di browser normal, tetapi dapat menyebabkan crash pada environment tanpa `window`. Akses tersebut dibuat defensif.
+- Inisialisasi partikel di `src/components/ParticleLayer.jsx:10-13` sebelumnya tidak menangani rejection. Sekarang rejection ditangani agar tidak menjadi unhandled promise.
+
+## Bukti pemeriksaan
+
+- `npm ls @tsparticles/react @tsparticles/slim`:
+  - `@tsparticles/react@3.0.0`
+  - `@tsparticles/slim@3.9.1`
+- `src/main.jsx:3-5` mengimpor `HashRouter`, `index.css`, dan `App`; `index.html:11` memiliki `#root`.
+- `src/index.css:1` berisi `@import "tailwindcss"`; `vite.config.js:8` memasang plugin `tailwindcss()`.
+- `src/App.jsx:11-14` menangani member tidak ditemukan dengan redirect ke `/risu`; data memang memiliki `id: "risu"` di `src/data/members.js:7`.
+- Semua file import utama ditemukan dengan kapitalisasi yang sesuai.
+- Seluruh referensi gambar `assets/members/...` yang dicek ada di `public/assets/members/...`.
+- `npm run build`: berhasil (`✓ built`).
+- `npm run lint`: berhasil, `Found 0 warnings and 0 errors.`
+- `npm run dev`: berhasil start; port 5173 sudah dipakai sehingga Vite memakai port 5174. Tidak ada error kompilasi/runtime dari Vite.
+
+## Perbaikan yang dipilih
+
+Mempertahankan dan menggunakan paket v3 yang sudah terpasang, karena kode `ParticleLayer.jsx` memang memakai API v3 dan build sekarang berhasil. Perubahan minimal dilakukan pada `src/components/ParticleLayer.jsx` untuk fallback `window.matchMedia` dan penanganan error inisialisasi.
+
+Tidak diperlukan reinstall npm. Jika instalasi kembali gagal, opsi pemulihan adalah `rm -rf node_modules package-lock.json && npm install` atau `npm install --legacy-peer-deps`; error npm lengkap perlu disimpan saat perintah tersebut dijalankan.
+
+## Verifikasi akhir
+
+- `npm run lint`: berhasil.
+- `npm run build`: berhasil.
+
+## Jalan keluar sementara tanpa partikel
+
+Di `src/components/CharacterStage.jsx:31`, komentari render berikut:
+
+```jsx
+{/* <ParticleLayer type={member.particle} /> */}
+```
+
+Import `ParticleLayer` di baris 1 juga dapat dikomentari jika lint meminta import tersebut dihapus. Ini hanya workaround; pada kondisi paket v3 saat ini partikel dapat tetap digunakan.
